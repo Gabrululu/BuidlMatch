@@ -103,8 +103,9 @@ export default function MiniappHome() {
   if (auth.status === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="text-muted-foreground text-sm animate-pulse">
-          Cargando…
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 animate-pulse" />
+          <p className="text-muted-foreground text-sm animate-pulse">Cargando…</p>
         </div>
       </div>
     );
@@ -123,11 +124,16 @@ export default function MiniappHome() {
       <div className="flex flex-1 flex-col gap-4 p-4 max-w-lg mx-auto w-full pb-10">
         {/* Header */}
         <div className="flex items-center justify-between pt-2">
-          <div>
-            <h1 className="text-lg font-bold leading-none">BuidlMatch</h1>
-            <p className="text-xs text-muted-foreground">Co-Builder</p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-base font-bold shadow-sm flex-shrink-0">
+              B
+            </div>
+            <div>
+              <h1 className="text-base font-bold leading-none">BuidlMatch</h1>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Co-Builder para builders latinos</p>
+            </div>
           </div>
-          <div className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
+          <div className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground font-medium">
             @{username}
           </div>
         </div>

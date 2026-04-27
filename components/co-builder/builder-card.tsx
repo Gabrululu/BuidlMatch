@@ -64,8 +64,8 @@ export function BuilderCard({ builder, tipAmount }: Props) {
       {/* Top row */}
       <div className="flex items-start gap-3">
         {/* Avatar */}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center text-white text-lg flex-shrink-0">
-          🏗️
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm">
+          {fcHandle.slice(0, 2).toUpperCase()}
         </div>
         {/* Info */}
         <div className="flex flex-col gap-0.5 min-w-0">
@@ -86,7 +86,7 @@ export function BuilderCard({ builder, tipAmount }: Props) {
           {builder.skills.slice(0, 5).map((s) => (
             <span
               key={s}
-              className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+              className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium"
             >
               {s}
             </span>
