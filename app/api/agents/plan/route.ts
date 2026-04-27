@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PROMPTS } from "@/agents/prompts";
 import { type AgentKey } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const AGENTS: AgentKey[] = ["design", "contracts", "frontend", "gtm"];
 
@@ -39,19 +39,17 @@ export async function POST(req: NextRequest) {
         for (const agent of AGENTS) {
           emit({ type: "agent_start", agent });
 
-          const agentStream = client.messages.stream({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 600,
-            system: SYSTEM_PROMPTS[agent],
-            messages: [{ role: "user", content: userMessage }],
+          const model = genAI.getGenerativeModel({
+            model: "gemini-2.0-flash",
+            systemInstruction: SYSTEM_PROMPTS[agent],
           });
 
-          for await (const event of agentStream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              emit({ type: "agent_chunk", agent, text: event.delta.text });
+          const result = await model.generateContentStream(userMessage);
+
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) {
+              emit({ type: "agent_chunk", agent, text });
             }
           }
 

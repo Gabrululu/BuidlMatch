@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, type Project } from "@/lib/supabase";
+import { getDb, type Project } from "@/lib/db";
 
 type Body = {
   owner_fid: number;
@@ -10,23 +10,20 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
+  const sql = getDb();
   const body = (await req.json()) as Body;
 
-  const { data, error } = await supabaseAdmin
-    .from("projects")
-    .insert({
-      owner_fid: body.owner_fid,
-      title: body.title,
-      plan_json: body.plan_json,
-      tx_hash: body.tx_hash ?? null,
-      metadata_uri: body.metadata_uri ?? null,
-    })
-    .select()
-    .single();
+  const rows = (await sql`
+    INSERT INTO projects (owner_fid, title, plan_json, tx_hash, metadata_uri)
+    VALUES (
+      ${body.owner_fid},
+      ${body.title},
+      ${JSON.stringify(body.plan_json)},
+      ${body.tx_hash ?? null},
+      ${body.metadata_uri ?? null}
+    )
+    RETURNING *
+  `) as Project[];
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ project: data as Project }, { status: 201 });
+  return NextResponse.json({ project: rows[0] }, { status: 201 });
 }

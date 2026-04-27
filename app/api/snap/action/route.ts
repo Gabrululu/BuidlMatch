@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase, type Builder } from "@/lib/supabase";
+import { getDb, type Builder } from "@/lib/db";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -36,7 +36,9 @@ function buildFrame({
         `<meta property="fc:frame:button:${idx}:action" content="${action}" />`,
       ];
       if (b.target) {
-        lines.push(`<meta property="fc:frame:button:${idx}:target" content="${b.target}" />`);
+        lines.push(
+          `<meta property="fc:frame:button:${idx}:target" content="${b.target}" />`
+        );
       }
       return lines.join("\n    ");
     })
@@ -61,18 +63,6 @@ function buildFrame({
 </html>`;
 }
 
-async function getRandomBuilder(): Promise<Builder | null> {
-  const { data, error } = await supabase
-    .from("builders")
-    .select("*")
-    .eq("active", true);
-
-  if (error || !data || data.length === 0) return null;
-
-  const idx = Math.floor(Math.random() * data.length);
-  return data[idx] as Builder;
-}
-
 function builderImageUrl(b: Builder): string {
   const params = new URLSearchParams({
     username: b.username,
@@ -83,6 +73,7 @@ function builderImageUrl(b: Builder): string {
 }
 
 export async function POST(req: NextRequest) {
+  const sql = getDb();
   const postUrl = `${APP_URL}/api/snap/action`;
 
   let body: FrameBody = {};
@@ -94,7 +85,6 @@ export async function POST(req: NextRequest) {
 
   const buttonIndex = body.untrustedData?.buttonIndex ?? 1;
 
-  // Parse existing state (if any)
   let state: FrameState = {};
   try {
     const raw = body.untrustedData?.state;
@@ -103,12 +93,16 @@ export async function POST(req: NextRequest) {
     // no prior state
   }
 
-  // Button 1 is always "Girar" — pick a new random builder
   if (buttonIndex === 1 || !state.fid) {
-    const builder = await getRandomBuilder();
+    const rows = (await sql`
+      SELECT * FROM builders WHERE active = true
+    `) as Builder[];
+
+    const builder = rows.length
+      ? rows[Math.floor(Math.random() * rows.length)]
+      : null;
 
     if (!builder) {
-      // No builders yet — show initial frame
       return new NextResponse(
         buildFrame({
           imageUrl: `${APP_URL}/api/snap/image`,
@@ -131,7 +125,9 @@ export async function POST(req: NextRequest) {
           {
             label: "👤 Seguir",
             action: "link",
-            target: `https://warpcast.com/${builder.username.replace(/\.eth$/, "").replace(/\.fc$/, "")}`,
+            target: `https://warpcast.com/${builder.username
+              .replace(/\.eth$/, "")
+              .replace(/\.fc$/, "")}`,
           },
           {
             label: `💸 Tip ${tipAmount} USDC`,
@@ -145,7 +141,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Fallback: spin again
   return new NextResponse(
     buildFrame({
       imageUrl: `${APP_URL}/api/snap/image`,

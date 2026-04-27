@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useWriteContract, useAccount } from "wagmi";
 import { parseUnits } from "viem";
-import { type Builder } from "@/lib/supabase";
+import { type Builder } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

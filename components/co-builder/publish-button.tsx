@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useWriteContract, useReadContract, useAccount } from "wagmi";
+import { useWriteContract, useReadContract, useConnection } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { REGISTRY_ABI, registryAddress } from "@/lib/contracts";
 import { type AgentPlan, type Skill } from "@/lib/types";
@@ -9,8 +9,8 @@ import { type AgentPlan, type Skill } from "@/lib/types";
 type Phase =
   | "idle"
   | "registering"
-  | "publishing"
   | "saving"
+  | "publishing"
   | "done"
   | "error";
 
@@ -28,8 +28,8 @@ function titleFromIdea(idea: string): string {
 }
 
 export function PublishButton({ fid, username, skills, idea, plan }: Props) {
-  const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
+  const { address } = useConnection();
+  const { mutateAsync: writeContractAsync } = useWriteContract();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
 
@@ -40,7 +40,11 @@ export function PublishButton({ fid, username, skills, idea, plan }: Props) {
     abi: REGISTRY_ABI,
     functionName: "isRegistered",
     args: [BigInt(fid)],
-    query: { enabled: fid > 0 && contractAddress !== "0x0000000000000000000000000000000000000000" },
+    query: {
+      enabled:
+        fid > 0 &&
+        contractAddress !== "0x0000000000000000000000000000000000000000",
+    },
   });
 
   async function handlePublish() {
@@ -53,7 +57,7 @@ export function PublishButton({ fid, username, skills, idea, plan }: Props) {
     setError("");
 
     try {
-      // Step 1: register if needed
+      // Step 1: register onchain if needed
       if (!isRegistered) {
         setPhase("registering");
         await writeContractAsync({
@@ -64,11 +68,35 @@ export function PublishButton({ fid, username, skills, idea, plan }: Props) {
         });
       }
 
-      // Step 2: publish project onchain
-      setPhase("publishing");
-      const title = titleFromIdea(idea);
-      const metadataUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/registry/projects`;
+      // Step 2: upsert builder in DB (ensures FK constraint is satisfied)
+      await fetch("/api/registry/builders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fid,
+          username,
+          bio: "",
+          skills,
+          wallet: address,
+        }),
+      });
 
+      // Step 3: save project to DB first to get its ID for the metadataUri
+      setPhase("saving");
+      const title = titleFromIdea(idea);
+      const saveRes = await fetch("/api/registry/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner_fid: fid, title, plan_json: plan }),
+      });
+
+      if (!saveRes.ok) throw new Error("Error al guardar el proyecto");
+
+      const { project } = (await saveRes.json()) as { project: { id: number } };
+      const metadataUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/registry/projects/${project.id}`;
+
+      // Step 4: publish onchain with the real metadataUri
+      setPhase("publishing");
       const txHash = await writeContractAsync({
         address: contractAddress,
         abi: REGISTRY_ABI,
@@ -76,19 +104,12 @@ export function PublishButton({ fid, username, skills, idea, plan }: Props) {
         args: [BigInt(fid), title, metadataUri],
       });
 
-      // Step 3: save to Supabase
-      setPhase("saving");
-      await fetch("/api/registry/projects", {
-        method: "POST",
+      // Step 5: store txHash in DB (best effort, non-blocking)
+      fetch(`/api/registry/projects/${project.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner_fid: fid,
-          title,
-          plan_json: plan,
-          tx_hash: txHash,
-          metadata_uri: metadataUri,
-        }),
-      });
+        body: JSON.stringify({ tx_hash: txHash }),
+      }).catch(() => {});
 
       setPhase("done");
     } catch (err) {
@@ -100,8 +121,8 @@ export function PublishButton({ fid, username, skills, idea, plan }: Props) {
   const labels: Record<Phase, string> = {
     idle: "🚀 Publicar proyecto",
     registering: "Registrando en Base…",
+    saving: "Guardando plan…",
     publishing: "Publicando onchain…",
-    saving: "Guardando…",
     done: "✓ Publicado en Base",
     error: "Reintentar",
   };
@@ -126,7 +147,7 @@ export function PublishButton({ fid, username, skills, idea, plan }: Props) {
       )}
       <Button
         onClick={handlePublish}
-        disabled={["registering", "publishing", "saving"].includes(phase)}
+        disabled={["registering", "saving", "publishing"].includes(phase)}
         className="w-full"
       >
         {labels[phase]}

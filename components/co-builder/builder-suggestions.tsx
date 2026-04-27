@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BuilderCard } from "./builder-card";
-import { type Builder } from "@/lib/supabase";
+import { type Builder } from "@/lib/db";
 import { type Skill } from "@/lib/types";
 
 type Props = {
